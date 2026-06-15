@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mood & Skin Analyzer</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+    <div class="container">
+
+        <h1>😊 Mood & Skin Analyzer</h1>
+        <p class="subtitle">
+            Detect your mood and skin type using webcam or image upload
+        </p>
+
+        <!-- ======================
+             WEBCAM SECTION
+        ======================= -->
+
+        <div class="card">
+
+            <h2>📷 Webcam Detection</h2>
+
+            <video id="video" autoplay playsinline></video>
+
+            <canvas id="canvas" style="display:none;"></canvas>
+
+            <div class="btn-group">
+                <button onclick="startCamera()">
+                    Start Camera
+                </button>
+
+                <button onclick="captureImage()">
+                    Capture & Predict
+                </button>
+            </div>
+
+        </div>
+
+        <!-- ======================
+             UPLOAD SECTION
+        ======================= -->
+
+        <div class="card">
+
+            <h2>🖼 Upload Image</h2>
+
+            <input type="file" id="imageInput" accept="image/*">
+
+            <button onclick="uploadImage()">
+                Predict Uploaded Image
+            </button>
+
+        </div>
+
+        <!-- ======================
+             RESULT SECTION
+        ======================= -->
+
+        <div id="resultBox" class="result-card" style="display:none;">
+
+    <h2>Prediction Result</h2>
+
+    <div class="result-grid">
+
+        <div class="result-item">
+            <h3>Mood</h3>
+            <p id="mood"></p>
+            <p id="moodConfidence"></p>
+            <ul id="moodTips"></ul>
+        </div>
+
+        <div class="result-item">
+            <h3>Skin Type</h3>
+            <p id="skin"></p>
+            <p id="skinConfidence"></p>
+            <ul id="skinTips"></ul>
+        </div>
+
+    </div>
+
+    <!-- ⭐ ADD THIS HERE -->
+    <div id="products"></div>
+
+</div>
+
+    </div>
+
+<script>
+
+let video = document.getElementById("video");
+
+
+// =========================
+// START CAMERA
+// =========================
+
+async function startCamera() {
+
+    try {
+
+        const stream =
+            await navigator.mediaDevices.getUserMedia({
+                video: true
+            });
+
+        video.srcObject = stream;
+
+    }
+
+    catch (err) {
+
+        alert("Camera access denied");
+
+        console.error(err);
+    }
+}
+
+
+// =========================
+// CAPTURE IMAGE
+// =========================
+
+async function captureImage() {
+
+    let canvas = document.getElementById("canvas");
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    let ctx = canvas.getContext("2d");
+
+    ctx.drawImage(
+        video,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+    let imageData =
+        canvas.toDataURL("image/jpeg");
+
+    try {
+
+        let response =
+            await fetch("/predict_webcam", {
+
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    image: imageData
+                })
+
+            });
+
+        let data = await response.json();
+
+        if (data.success) {
+
+            showResult(data.result);
+
+        } else {
+
+            alert(data.message);
+        }
+
+    }
+
+    catch (err) {
+
+        console.error(err);
+
+        alert("Prediction failed");
+    }
+}
+
+
+// =========================
+// UPLOAD IMAGE
+// =========================
+
+async function uploadImage() {
+
+    const fileInput =
+        document.getElementById("imageInput");
+
+    if (!fileInput.files.length) {
+
+        alert("Please choose an image");
+
+        return;
+    }
+
+    const formData = new FormData();
+
+    formData.append(
+        "image",
+        fileInput.files[0]
+    );
+
+    try {
+
+        let response =
+            await fetch("/predict_upload", {
+
+                method: "POST",
+
+                body: formData
+
+            });
+
+        let data = await response.json();
+
+        if (data.success) {
+
+            showResult(data.result);
+
+        } else {
+
+            alert(data.message);
+        }
+
+    }
+
+    catch (err) {
+
+        console.error(err);
+
+        alert("Prediction failed");
+    }
+}
+
+
+// =========================
+// DISPLAY RESULT
+// =========================
+
+function showResult(result) {
+
+    document.getElementById("resultBox").style.display = "block";
+
+    // MOOD
+    document.getElementById("mood").innerHTML =
+        `<strong>${result.mood}</strong>`;
+
+    document.getElementById("moodConfidence").innerHTML =
+        `Confidence: ${result.mood_confidence}%`;
+
+    let moodTips = "";
+    result.mood_tips.forEach(tip => {
+        moodTips += `<li>${tip}</li>`;
+    });
+    document.getElementById("moodTips").innerHTML = moodTips;
+
+    // SKIN
+    document.getElementById("skin").innerHTML =
+        `<strong>${result.skin}</strong>`;
+
+    document.getElementById("skinConfidence").innerHTML =
+        `Confidence: ${result.skin_confidence}%`;
+
+    let skinTips = "";
+    result.skin_tips.forEach(tip => {
+        skinTips += `<li>${tip}</li>`;
+    });
+    document.getElementById("skinTips").innerHTML = skinTips;
+
+    // PRODUCTS
+    let productHTML = "<h3>🧴 Recommended Products</h3>";
+
+    if (result.skin_products && result.skin_products.length > 0) {
+        result.skin_products.forEach(p => {
+            productHTML += `<p>• ${p}</p>`;
+        });
+    } else {
+        productHTML += "<p>No products available</p>";
+    }
+
+    document.getElementById("products").innerHTML = productHTML;
+
+    // scroll
+    window.scrollTo({
+        top: document.body.scrollHeight,
+        behavior: "smooth"
+    });
+}
+
+</script>
+
+</body>
+</html>

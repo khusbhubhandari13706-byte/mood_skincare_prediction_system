@@ -1,0 +1,6 @@
+{
+    "acne": 0,
+    "dry": 1,
+    "healthy": 2,
+    "oily": 3
+}
